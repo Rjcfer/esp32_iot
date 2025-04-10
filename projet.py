@@ -214,37 +214,52 @@ def handle_interrupt(pin):
     global flag
     flag = not flag
     
-# === Read Temp For physique Button ===
-def readTempAndHum ():
-    global flag
-    try:
-        dht_sensor.measure()
-        temp = dht_sensor.temperature()
-        hum = dht_sensor.humidity()
-        print("The temperature is : "+str(temp))
-        print("Humidity is :"+ str(hum))
-        if temp >= 20:
-            np.fill((0,128,0))
-        else:
-            np.fill((0,0,128))
-        np.write()
-        time.sleep(3)
-        flag = False 
-        
-    except OSError as e :
-        print("Something is wrong with you sensor!")
+# === Display temp/hum on LEDs ===
+def show_temp_led(temp):
+    if temp >= 20:
+        np.fill((0, 128, 0))  # Green
+    else:
+        np.fill((0, 0, 128))  # Blue
+    np.write()
+    time.sleep(3)
+    np.fill((0, 0, 0))  # Turn off LEDs
+    np.write()
 
+# === Display on OLED screen with smiley if values OK ===
+def show_on_oled(temp, hum):
+    oled.fill(0)
+    oled.text("Temp: {} C".format(temp), 0, 0)
+    oled.text("Hum:  {} %".format(hum), 0, 10)
+
+    # Draw happy face if within good range
+    if 18 <= temp <= 25 and 40 <= hum <= 80:
+        # Simple smiley face on the right
+        x = 100
+        y = 0
+        oled.rect(x, y, 16, 16, 1)  # Head
+        oled.fill_rect(x+4, y+4, 2, 2, 1)  # Left eye
+        oled.fill_rect(x+10, y+4, 2, 2, 1)  # Right eye
+        oled.hline(x+4, y+12, 8, 1)  # Smile
+    else:
+        oled.text(":(", 105, 5)  # Sad text face
+
+    oled.show()
+
+# === Send data to ThingSpeak ===
 boot_button.irq(trigger=Pin.IRQ_FALLING,handler=handle_interrupt)
 
 # === Main logic ===
 def main_loop():
+    global flag
     last_send = time.time()
     while True:
         if flag:
-            readTempAndHum();
-        else:
-            np.fill((0,0,0))
-            np.write()
+            temp, hum = read_sensor()
+            
+            if temp is not None:
+                show_temp_led(temp)
+                show_on_oled(temp, hum)
+            flag = False
         
         now = time.time()
         if now - last_send >= SEND_INTERVAL:
