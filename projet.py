@@ -7,7 +7,7 @@ from machine import Pin, I2C, SoftI2C
 import ssd1306
 import dht
 import urequests
-import config  # Importer le fichier config
+import config 
 
 # === CONFIGURATION ===
 WIFI_SSID = config.WIFI_SSID
@@ -27,6 +27,7 @@ button = Pin(0, Pin.IN, Pin.PULL_UP)
 i2c = SoftI2C(scl=Pin(22), sda=Pin(21))
 oled = ssd1306.SSD1306_I2C(128, 32, i2c)
 led_strip=NeoPixel(Pin(23),12)
+boot_button= Pin(0,Pin.IN,Pin.PULL_UP)
 
 # === GLOBAL VARIABLES ===
 r = 0
@@ -207,10 +208,44 @@ def data_page(request):
 def start_webserver():
     _thread.start_new_thread(lambda: app.run(port=80), ())
 
+# === Handle physique btn ===
+flag = False
+def handle_interrupt(pin):
+    global flag
+    flag = not flag
+    
+# === Read Temp For physique Button ===
+def readTempAndHum ():
+    global flag
+    try:
+        dht_sensor.measure()
+        temp = dht_sensor.temperature()
+        hum = dht_sensor.humidity()
+        print("The temperature is : "+str(temp))
+        print("Humidity is :"+ str(hum))
+        if temp >= 20:
+            np.fill((0,128,0))
+        else:
+            np.fill((0,0,128))
+        np.write()
+        time.sleep(3)
+        flag = False 
+        
+    except OSError as e :
+        print("Something is wrong with you sensor!")
+
+boot_button.irq(trigger=Pin.IRQ_FALLING,handler=handle_interrupt)
+
 # === Main logic ===
 def main_loop():
     last_send = time.time()
     while True:
+        if flag:
+            readTempAndHum();
+        else:
+            np.fill((0,0,0))
+            np.write()
+        
         now = time.time()
         if now - last_send >= SEND_INTERVAL:
             temp, hum = read_sensor()
