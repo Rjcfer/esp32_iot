@@ -34,7 +34,7 @@ r = 0
 g = 0
 b = 0
 current = 12
-history = []  # Liste des mesures
+history = [] 
 
 # === Led control ==
 def trun_on_LEDs():
@@ -131,6 +131,7 @@ html_site = """<html>
 
 @app.route('/')
 def start(request):
+    print("server call")
     return html_site.format(status='Hello'), 200, {'Content-Type': 'text/html'}
 
 @app.route('/button1')
@@ -165,9 +166,10 @@ def show_text(request):
 @app.route('/data')
 def data_page(request):
     try:
-        url = f"http://api.thingspeak.com/channels/{CHANNEL_ID}/feeds.json?api_key={THINGSPEAK_READ_API_KEY}&results=20"
-        response = urequests.get(url)
+        url = f"http://api.thingspeak.com/channels/{CHANNEL_ID}/feeds.json?api_key={THINGSPEAK_READ_API_KEY}&results=10"
+        response = urequests.get(url,timeout=20)
         data = response.json()
+        print(data)
         response.close()
 
         feeds = data.get("feeds", [])
@@ -273,6 +275,15 @@ def start_sensor_loop():
     _thread.start_new_thread(main_loop, ())
 
 # === MAIN ===
-setup_network()
-start_sensor_loop()  
-app.run(port=80) 
+
+def main():
+    print("[MAIN] Initialisation réseau...")
+    setup_network()  # D'abord le WiFi
+
+    print("[MAIN] Lancement boucle capteur...")
+    _thread.start_new_thread(main_loop, ())  # Ensuite la boucle capteur
+
+    print("[MAIN] Lancement serveur web...")
+    app.run(host="0.0.0.0", port=80, debug=True)  # Enfin le serveur web
+
+main()
